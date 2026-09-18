@@ -1,0 +1,48 @@
+name: dependency-check
+
+# OWASP Dependency-Check downloads and cross-references the full NVD CVE database, which is
+# slow (several minutes even with a cache) — kept out of the per-push CI workflow and run
+# weekly instead, plus on demand.
+on:
+  schedule:
+    - cron: "0 6 * * 1" # every Monday at 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Cache NVD database
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository/org/owasp/dependency-check-data
+          key: nvd-cache-${{ github.run_id }}
+          restore-keys: nvd-cache-
+
+      - name: Run OWASP Dependency-Check
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: |
+          ./mvnw -B -pl keypass-common,keypass-server -am \
+            org.owasp:dependency-check-maven:13.0.0:check \
+            -DnvdApiKey="$NVD_API_KEY" -DfailBuildOnCVSS=9
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dependency-check-report
+          path: |
+            keypass-common/target/dependency-check-report.html
+            keypass-server/target/dependency-check-report.html
+          retention-days: 30

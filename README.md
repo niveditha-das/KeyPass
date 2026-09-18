@@ -42,6 +42,7 @@ See [`docs/architecture.md`](docs/architecture.md) for the module layout and seq
 keypass-common   — crypto (Ed25519, Bloom filter, token bucket) + domain model, no Spring
 keypass-server   — the Spring Boot API
 keypass-car-sim  — a plain-Java client that plays the role of phones and cars
+load-tests       — Gatling simulations (a separate Maven project, not part of the main reactor)
 ```
 
 ## Quick start
@@ -65,15 +66,16 @@ export JAVA_HOME=/opt/homebrew/opt/openjdk@21   # or wherever your Java 21 lives
 ./mvnw -pl keypass-common,keypass-server -am verify
 ```
 
-This runs unit tests, ArchUnit architectural checks, and Testcontainers integration tests
-against a real, ephemeral PostgreSQL container (Docker must be running). Measured on this build:
+This runs unit tests, ArchUnit architectural checks, Testcontainers integration tests against a
+real, ephemeral PostgreSQL container (Docker must be running), an 80% line-coverage gate on the
+policy/access/key/revocation packages, and a Spotless formatting check. Measured on this build:
 
 | Module | Tests |
 |---|---|
-| `keypass-common` (crypto, policy rules, Bloom filter, token bucket) | 24 |
-| `keypass-server` unit + ArchUnit | 17 |
-| `keypass-server` Testcontainers integration | 15 |
-| **Total** | **56**, all passing |
+| `keypass-common` (crypto, policy rules, Bloom filter, token bucket) | 28 |
+| `keypass-server` unit, web-layer slices + ArchUnit | 38 |
+| `keypass-server` Testcontainers integration | 17 |
+| **Total** | **83**, all passing |
 
 ## Running the simulator
 
@@ -86,6 +88,23 @@ With a server running (via `docker compose up`, or `./mvnw -pl keypass-server sp
 Prints a pass/fail summary for all 9 scenarios: normal unlock, natural expiry, revocation,
 replay, stolen credential, tampered credential, geofence breach, curfew, and rate-limited brute
 force.
+
+## Load testing
+
+Real, measured numbers (not estimates) live in
+[`docs/load-test-results.md`](docs/load-test-results.md): 1,755 requests against
+`POST /vehicles/{vin}/access-checks` at 50 requests/second, **100% success, p95 = 89ms**,
+measured on an Apple M4 with the server and PostgreSQL both running locally. Run it yourself:
+
+```bash
+cd load-tests
+mvn gatling:test -Dgatling.simulationClass=com.keypass.loadtest.AccessCheckSimulation \
+    -Dkeypass.baseUrl=http://localhost:8080
+```
+
+This is a separate Maven project deliberately outside the main reactor, so `./mvnw verify` at
+the repo root never runs it — it needs a server you've started yourself and shouldn't compete
+with anything else for CPU while it measures timing.
 
 ## Security
 
@@ -110,7 +129,9 @@ Recorded as ADRs in [`docs/adr/`](docs/adr/):
 build: Spring Boot 4 silently split Flyway's auto-configuration into a separate dependency, so
 migrations never ran and the app failed at startup with a misleading "missing table" error —
 caught only by actually running the app against real infrastructure, not by the (fully green)
-unit test suite.
+unit test suite. [`docs/dev-log.md`](docs/dev-log.md) covers several smaller ones (a
+Testcontainers/Spring-test-cache interaction, three more Boot 4 module splits, and a rate-limiter
+math mistake caught before it ever ran).
 
 ## Limitations and future work
 
@@ -122,10 +143,14 @@ unit test suite.
 - **Redis-backed rate limiting.** The current token bucket is per-instance in-memory Caffeine,
   fine for one server, not for a horizontally scaled deployment.
 - **PostGIS for geofencing at scale.** See ADR 0006.
-- **Load testing and AWS deployment** are deliberately not included here. Both need real,
-  measured numbers rather than guessed ones — a Gatling simulation of the access-check endpoint
-  and an optional single-instance EC2 + Docker Compose deployment are the natural next steps,
-  documented but not run as part of this build.
+- **AWS deployment** is deliberately not included here — it needs a real cloud account and would
+  cost real money to stand up and tear down. The natural next step is a single EC2 instance
+  running the existing `docker-compose.yml` behind Caddy for HTTPS, with secrets in SSM
+  Parameter Store.
+- **A dedicated rate-limiter stress test.** The current load test (see below) deliberately keeps
+  every key's request rate under its limit to measure steady-state latency; a follow-up test
+  with fewer keys at the same throughput would demonstrate the brute-force protection holding
+  under sustained load rather than just the simulator's 15-attempt scenario.
 
 ## Interview questions this project is meant to prepare for
 

@@ -35,6 +35,13 @@ jobs:
             keypass-server/target/failsafe-reports
           retention-days: 7
 
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: keypass-server/target/classes/META-INF/sbom/application.cdx.json
+          retention-days: 30
+
   codeql:
     runs-on: ubuntu-latest
     permissions:
@@ -63,5 +70,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Build image
         run: docker build -t keypass:${{ github.sha }} .
+
+      - name: Trivy scan
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          image-ref: keypass:${{ github.sha }}
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: '1'
