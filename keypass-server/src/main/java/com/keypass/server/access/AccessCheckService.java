@@ -11,6 +11,8 @@ import com.keypass.server.key.DigitalKeyRepository;
 import com.keypass.server.policy.Evaluation;
 import com.keypass.server.policy.PolicyEngine;
 import com.keypass.server.vehicle.Vehicle;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -38,6 +40,7 @@ public class AccessCheckService {
     private final RateLimiter rateLimiter;
     private final ApplicationEventPublisher events;
     private final Clock clock;
+    private final MeterRegistry meterRegistry;
 
     public AccessCheckService(
             CredentialVerifier credentialVerifier,
@@ -47,7 +50,8 @@ public class AccessCheckService {
             AuditService audit,
             RateLimiter rateLimiter,
             ApplicationEventPublisher events,
-            Clock clock) {
+            Clock clock,
+            MeterRegistry meterRegistry) {
         this.credentialVerifier = credentialVerifier;
         this.nonceStore = nonceStore;
         this.keys = keys;
@@ -56,10 +60,20 @@ public class AccessCheckService {
         this.rateLimiter = rateLimiter;
         this.events = events;
         this.clock = clock;
+        this.meterRegistry = meterRegistry;
     }
 
     @Transactional
     public AccessDecision check(Vehicle vehicle, AccessRequest req) {
+        Timer.Sample sample = Timer.start(meterRegistry);
+        try {
+            return doCheck(vehicle, req);
+        } finally {
+            sample.stop(meterRegistry.timer("keypass_access_check_seconds"));
+        }
+    }
+
+    private AccessDecision doCheck(Vehicle vehicle, AccessRequest req) {
         requireComplete(req);
         Instant now = clock.instant();
 
@@ -102,6 +116,7 @@ public class AccessCheckService {
 
         audit.accessGranted(vehicle.getId(), key.getId(), key.getHolderId(), req.command(), eval.trace(), req.location());
         events.publishEvent(new AccessGrantedEvent(vehicle.getId(), key.getId(), key.getHolderId(), now));
+        meterRegistry.counter("keypass_access_decisions_total", "decision", "GRANTED", "reason", "ok").increment();
         return AccessDecision.granted(eval.trace(), key.getMaxSpeedKmh());
     }
 
@@ -109,6 +124,7 @@ public class AccessCheckService {
             java.util.UUID vehicleId, java.util.UUID keyId, AccessRequest req, String reason, List<RuleResult> trace) {
         audit.accessDenied(vehicleId, keyId, req.command(), reason, trace, req.location());
         events.publishEvent(new AccessDeniedEvent(vehicleId, keyId, reason, clock.instant()));
+        meterRegistry.counter("keypass_access_decisions_total", "decision", "DENIED", "reason", reason).increment();
         return AccessDecision.denied(reason, trace);
     }
 

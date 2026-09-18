@@ -34,13 +34,18 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // /actuator/prometheus is left unauthenticated for Prometheus to scrape.
+                        // A production deployment would instead expose it on a separate
+                        // management port not reachable from outside the cluster's network,
+                        // rather than relying on obscurity of the path.
                         .requestMatchers(
                                 "/api/v1/auth/**",
                                 "/api/v1/.well-known/**",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
-                                "/actuator/health")
+                                "/actuator/health",
+                                "/actuator/prometheus")
                         .permitAll()
                         .requestMatchers(
                                 "/api/v1/vehicles/*/access-checks",

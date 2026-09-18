@@ -5,6 +5,7 @@ import com.keypass.server.common.NotFoundException;
 import com.keypass.server.key.DigitalKey;
 import com.keypass.server.key.DigitalKeyRepository;
 import com.keypass.server.key.KeyAuthorization;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.util.List;
@@ -27,14 +28,17 @@ public class KeyRevocationService {
     private final KeyAuthorization authz;
     private final AuditService audit;
     private final Clock clock;
+    private final MeterRegistry meterRegistry;
 
     public KeyRevocationService(
-            JdbcClient jdbc, DigitalKeyRepository keys, KeyAuthorization authz, AuditService audit, Clock clock) {
+            JdbcClient jdbc, DigitalKeyRepository keys, KeyAuthorization authz, AuditService audit, Clock clock,
+            MeterRegistry meterRegistry) {
         this.jdbc = jdbc;
         this.keys = keys;
         this.authz = authz;
         this.audit = audit;
         this.clock = clock;
+        this.meterRegistry = meterRegistry;
     }
 
     @Transactional
@@ -62,6 +66,7 @@ public class KeyRevocationService {
                 .list();
 
         revoked.forEach(id -> audit.keyRevoked(root.getVehicleId(), id, actorId));
+        meterRegistry.counter("keypass_revocations_total").increment(revoked.size());
         return revoked;
     }
 }

@@ -59,6 +59,11 @@ Then:
 - Swagger UI: <http://localhost:8080/swagger-ui.html>
 - Health check: <http://localhost:8080/actuator/health>
 
+Optionally bring up Prometheus too (`docker compose --profile monitoring up`), scraping
+`/actuator/prometheus` — Micrometer exposes counters for access decisions
+(`keypass_access_decisions_total{decision,reason}`), a timer for access-check latency, and
+counters for revocations and alerts.
+
 ## Running the tests
 
 ```bash
