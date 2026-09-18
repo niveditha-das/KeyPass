@@ -1,0 +1,31 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: keypass
+      POSTGRES_USER: keypass
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports: ["5432:5432"]
+    volumes:
+      - keypass-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keypass"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  server:
+    build: .
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/keypass
+      SPRING_DATASOURCE_USERNAME: keypass
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
+      KEYPASS_SIGNING_KEY: ${KEYPASS_SIGNING_KEY}
+      KEYPASS_SIGNING_PUBLIC_KEY: ${KEYPASS_SIGNING_PUBLIC_KEY}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports: ["8080:8080"]
+
+volumes:
+  keypass-db:
