@@ -8,7 +8,7 @@ CREATE TABLE app_user (
 
 CREATE TABLE vehicle (
   id           UUID PRIMARY KEY,
-  vin          CHAR(17)     NOT NULL UNIQUE,
+  vin          VARCHAR(17)  NOT NULL UNIQUE,
   owner_id     UUID         NOT NULL REFERENCES app_user(id),
   model        VARCHAR(100) NOT NULL,
   time_zone    VARCHAR(50)  NOT NULL DEFAULT 'Europe/Dublin',
