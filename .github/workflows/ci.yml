@@ -1,0 +1,67 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      # Unit tests, ArchUnit checks, and Testcontainers integration tests against a real
+      # ephemeral Postgres container (the runner has Docker available by default).
+      - name: Build and test
+        run: ./mvnw -B -pl keypass-common,keypass-server -am verify
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            keypass-server/target/surefire-reports
+            keypass-server/target/failsafe-reports
+          retention-days: 7
+
+  codeql:
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: java-kotlin
+
+      - name: Build (no tests, CodeQL needs the compiled classes)
+        run: ./mvnw -B -pl keypass-common,keypass-server -am -DskipTests package
+
+      - uses: github/codeql-action/analyze@v3
+
+  docker-build:
+    needs: build-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t keypass:${{ github.sha }} .
