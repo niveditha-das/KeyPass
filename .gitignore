@@ -1,0 +1,12 @@
+target/
+*.class
+.idea/
+*.iml
+*.iws
+.vscode/
+.DS_Store
+.env
+*.log
+HELP.md
+.mvn/wrapper/maven-wrapper.jar
+/keypass-signing-key.txt
