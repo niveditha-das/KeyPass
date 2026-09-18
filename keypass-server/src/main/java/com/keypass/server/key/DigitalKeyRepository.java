@@ -31,4 +31,13 @@ public interface DigitalKeyRepository extends JpaRepository<DigitalKey, UUID> {
     List<DigitalKey> findByHolderId(UUID holderId);
 
     List<DigitalKey> findByParentKeyId(UUID parentKeyId);
+
+    @Query("select k.id from DigitalKey k where k.vehicleId = :vehicleId and k.status = 'REVOKED'")
+    List<UUID> findRevokedKeyIds(@Param("vehicleId") UUID vehicleId);
+
+    @Query("select max(k.revocationEpoch) from DigitalKey k where k.vehicleId = :vehicleId")
+    Optional<Long> findMaxRevocationEpoch(@Param("vehicleId") UUID vehicleId);
+
+    @Query("select k.id from DigitalKey k where k.vehicleId = :vehicleId and k.revocationEpoch > :sinceEpoch")
+    List<UUID> findRevokedSince(@Param("vehicleId") UUID vehicleId, @Param("sinceEpoch") long sinceEpoch);
 }
