@@ -133,6 +133,68 @@ class KeyControllerTest {
                 .andExpect(status().isOk());
     }
 
+    @Test
+    void resumeDelegatesToKeyService() throws Exception {
+        UUID userId = UUID.randomUUID();
+        DigitalKey key = sampleKey(userId);
+        when(keyService.resume(key.getId(), userId)).thenReturn(key);
+
+        mockMvc.perform(post("/api/v1/keys/{id}/resume", key.getId())
+                        .with(jwt().jwt(j -> j.subject(userId.toString()))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void revokeReturnsRevokedKeyIds() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID keyId = UUID.randomUUID();
+        UUID childId = UUID.randomUUID();
+        when(revocationService.revoke(keyId, userId)).thenReturn(List.of(keyId, childId));
+
+        mockMvc.perform(post("/api/v1/keys/{id}/revoke", keyId)
+                        .with(jwt().jwt(j -> j.subject(userId.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.revokedKeyIds.length()").value(2));
+    }
+
+    @Test
+    void mineListsKeysHeldByTheCurrentUser() throws Exception {
+        UUID userId = UUID.randomUUID();
+        when(keys.findByHolderId(userId)).thenReturn(List.of(sampleKey(userId), sampleKey(userId)));
+
+        mockMvc.perform(get("/api/v1/keys/mine")
+                        .with(jwt().jwt(j -> j.subject(userId.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.length()").value(2));
+    }
+
+    @Test
+    void credentialReturnsTheIssuedToken() throws Exception {
+        UUID userId = UUID.randomUUID();
+        DigitalKey key = sampleKey(userId);
+        when(keys.findByIdAndHolderId(key.getId(), userId)).thenReturn(Optional.of(key));
+        when(credentialIssuer.issue(key)).thenReturn("signed-credential-token");
+
+        mockMvc.perform(get("/api/v1/keys/{id}/credential", key.getId())
+                        .with(jwt().jwt(j -> j.subject(userId.toString()))))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .jsonPath("$.credential").value("signed-credential-token"));
+    }
+
+    @Test
+    void credentialForSomeoneElsesKeyReturns404() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID keyId = UUID.randomUUID();
+        when(keys.findByIdAndHolderId(keyId, userId)).thenReturn(Optional.empty());
+
+        mockMvc.perform(get("/api/v1/keys/{id}/credential", keyId)
+                        .with(jwt().jwt(j -> j.subject(userId.toString()))))
+                .andExpect(status().isNotFound());
+    }
+
     private static org.springframework.test.web.servlet.ResultMatcher jsonPathStatus(int expected) {
         return org.springframework.test.web.servlet.result.MockMvcResultMatchers
                 .jsonPath("$.status").value(expected);
