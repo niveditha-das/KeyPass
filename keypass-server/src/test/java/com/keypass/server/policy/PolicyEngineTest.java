@@ -7,7 +7,6 @@ import com.keypass.common.model.Command;
 import com.keypass.common.model.CurfewRule;
 import com.keypass.common.model.Permission;
 import com.keypass.server.key.DigitalKey;
-import com.keypass.server.key.KeyStatus;
 import java.time.Instant;
 import java.time.LocalTime;
 import java.time.ZoneOffset;

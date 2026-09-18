@@ -1,8 +1,8 @@
 package com.keypass.server.alert;
 
+import com.keypass.server.access.AccessDeniedEvent;
 import com.keypass.server.audit.AuditEventRepository;
 import com.keypass.server.audit.EventType;
-import com.keypass.server.access.AccessDeniedEvent;
 import java.time.Clock;
 import java.time.Duration;
 import org.springframework.stereotype.Component;

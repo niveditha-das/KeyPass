@@ -12,7 +12,6 @@ import com.keypass.server.key.DigitalKey;
 import com.keypass.server.key.DigitalKeyRepository;
 import com.keypass.server.key.KeyStatus;
 import com.keypass.server.vehicle.Vehicle;
-import java.security.KeyPair;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
