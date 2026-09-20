@@ -75,7 +75,7 @@ jobs:
         run: docker build -t keypass:${{ github.sha }} .
 
       - name: Trivy scan
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: keypass:${{ github.sha }}
           severity: CRITICAL,HIGH
