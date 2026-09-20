@@ -1,0 +1,32 @@
+# Production overlay. Use together with the base file:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# Differences from local dev: the prod Spring profile (Swagger off, signing key mandatory), no
+# database or app port published to the host, and Caddy terminating HTTPS in front of the app.
+services:
+  db:
+    ports: !reset []
+
+  server:
+    ports: !reset []
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      KEYPASS_SIGNING_KEY: ${KEYPASS_SIGNING_KEY:?set KEYPASS_SIGNING_KEY (see scripts/GenerateSigningKey.java)}
+      KEYPASS_SIGNING_PUBLIC_KEY: ${KEYPASS_SIGNING_PUBLIC_KEY:?set KEYPASS_SIGNING_PUBLIC_KEY}
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      KEYPASS_DOMAIN: ${KEYPASS_DOMAIN:?set KEYPASS_DOMAIN to the public hostname}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    depends_on:
+      - server
+
+volumes:
+  caddy-data:

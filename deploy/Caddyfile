@@ -1,0 +1,10 @@
+# Caddy obtains and renews a Let's Encrypt certificate automatically for {$KEYPASS_DOMAIN}.
+{$KEYPASS_DOMAIN} {
+	encode zstd gzip
+
+	# Prometheus scraping stays on the internal compose network; never expose it publicly.
+	@internal path /actuator/*
+	respond @internal 404
+
+	reverse_proxy server:8080
+}
