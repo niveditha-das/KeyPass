@@ -9,10 +9,11 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Drives the KeyPass API through the attack and edge-case scenarios described in the build
- * guide. Run against a live server (defaults to http://localhost:8080):
+ * Drives the KeyPass API through a set of attack and edge-case scenarios. Run against a live
+ * server (defaults to http://localhost:8080), after installing keypass-common once:
  *
- *   mvn -pl keypass-car-sim -am exec:java -Dexec.args="http://localhost:8080"
+ *   ./mvnw -DskipTests -pl keypass-common install
+ *   ./mvnw -pl keypass-car-sim exec:java -Dexec.args="http://localhost:8080"
  */
 public class Main {
 

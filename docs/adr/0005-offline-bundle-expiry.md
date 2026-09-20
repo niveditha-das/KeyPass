@@ -35,8 +35,8 @@ signal that the 24-hour window mattered in practice.
 - **A plain revoked-ID list instead of a Bloom filter**: for a single car with a handful of
   keys, a plain set would be simpler and just as correct — the Bloom filter's compactness only
   earns its complexity at fleet scale, where one filter can cover thousands of revoked keys in a
-  few kilobytes. It's implemented here because the guide calls for it and because sizing and
-  false-positive-rate tuning are themselves useful interview material, but a smaller single-car
+  few kilobytes. It's implemented here because it scales to fleet-sized revocation lists and because
+  sizing and false-positive-rate tuning are worth getting right, but a smaller single-car
   deployment would reasonably choose the simpler structure instead.
 - **No expiry (trust the bundle forever)**: unacceptable — a car that syncs once and is then
   taken permanently offline would keep honoring keys revoked the next day.

@@ -5,7 +5,7 @@ Status: Accepted
 ## Context
 
 KeyPass needs a backend stack that's productive to build quickly, well understood by anyone
-reviewing the code (an interviewer included), and capable of the relational integrity
+reviewing the code, and capable of the relational integrity
 guarantees the domain needs (foreign keys, row locks, transactions).
 
 ## Decision

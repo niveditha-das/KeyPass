@@ -33,7 +33,7 @@ clue that no tables existed at all, not just one.
 Spring Boot 4 moved Flyway's auto-configuration into a new `org.springframework.boot:spring-boot-flyway`
 artifact. Having `flyway-core` on the classpath is no longer sufficient by itself to get Flyway
 wired into the application context — the dedicated Boot auto-configuration module has to be an
-explicit dependency too. Every build guide and Stack Overflow answer written for Boot 3 (which
+explicit dependency too. Most tutorials and Stack Overflow answers written for Boot 3 (which
 is most of what exists as of this writing) assumes the older bundling and simply doesn't mention
 this.
 

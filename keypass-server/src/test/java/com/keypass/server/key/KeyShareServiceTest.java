@@ -22,7 +22,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/** One test per delegation rule from the build guide: a holder can only ever narrow what they
+/** One test per delegation rule: a holder can only ever narrow what they
  * pass on, never widen it. */
 @ExtendWith(MockitoExtension.class)
 class KeyShareServiceTest {
