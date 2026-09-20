@@ -1,0 +1,10 @@
+# Activated with SPRING_PROFILES_ACTIVE=prod (the production compose overlay sets this).
+keypass:
+  # Refuse to start without a real signing key instead of quietly generating an ephemeral one.
+  require-signing-key: true
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false

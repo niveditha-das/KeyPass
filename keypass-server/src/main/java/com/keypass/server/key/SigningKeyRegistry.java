@@ -30,10 +30,17 @@ public class SigningKeyRegistry {
     public SigningKeyRegistry(
             @Value("${keypass.signing-key:}") String base64PrivateKey,
             @Value("${keypass.signing-public-key:}") String base64PublicKey,
-            @Value("${keypass.signing-key-id:kid-dev-1}") String kid)
+            @Value("${keypass.signing-key-id:kid-dev-1}") String kid,
+            @Value("${keypass.require-signing-key:false}") boolean requireSigningKey)
             throws GeneralSecurityException {
         this.activeKid = kid;
         if (base64PrivateKey == null || base64PrivateKey.isBlank()) {
+            if (requireSigningKey) {
+                throw new IllegalStateException(
+                        "KEYPASS_SIGNING_KEY is required in this profile: an ephemeral key would silently "
+                                + "invalidate every issued credential on restart. Generate one with "
+                                + "`java scripts/GenerateSigningKey.java`.");
+            }
             log.warn("KEYPASS_SIGNING_KEY not set; generating an ephemeral Ed25519 key for this run only. "
                     + "Credentials issued now will not verify after a restart.");
             KeyPair pair = Ed25519.generate();
