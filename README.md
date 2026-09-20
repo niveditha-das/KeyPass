@@ -107,6 +107,10 @@ mvn gatling:test -Dgatling.simulationClass=com.keypass.loadtest.AccessCheckSimul
     -Dkeypass.baseUrl=http://localhost:8080
 ```
 
+A second simulation, `RateLimiterStressSimulation`, does the opposite: few keys, hammered far
+past their limit. Measured result: 80 grants and 1,675 `RATE_LIMITED` denials out of 1,755
+requests, no server errors, p95 66ms (details in the results doc).
+
 This is a separate Maven project deliberately outside the main reactor, so `./mvnw verify` at
 the repo root never runs it — it needs a server you've started yourself and shouldn't compete
 with anything else for CPU while it measures timing.
@@ -148,14 +152,10 @@ math mistake caught before it ever ran).
 - **Redis-backed rate limiting.** The current token bucket is per-instance in-memory Caffeine,
   fine for one server, not for a horizontally scaled deployment.
 - **PostGIS for geofencing at scale.** See ADR 0006.
-- **AWS deployment** is deliberately not included here — it needs a real cloud account and would
-  cost real money to stand up and tear down. The natural next step is a single EC2 instance
-  running the existing `docker-compose.yml` behind Caddy for HTTPS, with secrets in SSM
-  Parameter Store.
-- **A dedicated rate-limiter stress test.** The current load test (see below) deliberately keeps
-  every key's request rate under its limit to measure steady-state latency; a follow-up test
-  with fewer keys at the same throughput would demonstrate the brute-force protection holding
-  under sustained load rather than just the simulator's 15-attempt scenario.
+- **AWS deployment.** Prepared but not executed, since it needs a real cloud account and real
+  money: [`docs/deployment.md`](docs/deployment.md) is a runbook for a single EC2 instance, with
+  `docker-compose.prod.yml` (prod profile, Caddy HTTPS, no published DB port),
+  `deploy/Caddyfile`, and `deploy/fetch-secrets.sh` (secrets from SSM Parameter Store).
 
 ## Interview questions this project is meant to prepare for
 

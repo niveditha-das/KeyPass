@@ -55,7 +55,38 @@ level.
   breaking point — the goal here was a real, honest baseline number rather than a stress-test
   ceiling, in keeping with the project's own rule against citing unmeasured numbers.
 - The rate limiter (`RateLimiter`, 10 requests/minute per key) was deliberately kept *out* of the
-  failure path by seeding enough keys that no single key's request rate approached its limit —
-  see the reasoning in `dev-log.md`. A test specifically targeting the rate limiter (fewer keys,
-  same throughput) would be a natural follow-up to demonstrate brute-force protection holding
-  under sustained load, rather than just under the simulator's 15-attempt scenario.
+  failure path here by seeding enough keys that no single key's request rate approached its
+  limit — see the reasoning in `dev-log.md`. The opposite case is measured in the next section.
+
+## Rate-limiter stress test
+
+[`RateLimiterStressSimulation`](../load-tests/src/test/java/com/keypass/loadtest/RateLimiterStressSimulation.java)
+inverts the setup above: **5 keys** instead of 400, at the same 50 requests/second profile, so
+each key is hit at roughly 10 requests/second against an allowance of 10 per *minute* — what a
+brute-force attacker replaying one stolen credential looks like. Same machine and injection
+profile as above.
+
+```bash
+cd load-tests
+mvn gatling:test -Dgatling.simulationClass=com.keypass.loadtest.RateLimiterStressSimulation \
+    -Dkeypass.baseUrl=http://localhost:8080
+```
+
+| Metric | Value |
+|---|---|
+| Total requests | 1,755 |
+| Granted | 80 |
+| Denied `RATE_LIMITED` | 1,675 |
+| Other denials | 0 |
+| Upper bound the limiter should allow (5 keys x (10 burst + 40s / 6s refill + 1)) | 85 |
+| HTTP failures (non-200) | 0 |
+| p50 / p95 / p99 | 62 ms / 66 ms / 74 ms |
+| Max response time | 104 ms |
+
+The limiter held: 80 grants against a ceiling of 85, and 95.4% of the traffic was rejected
+without a single server error. Rejections were also *cheaper* than grants (p95 66 ms vs 89 ms),
+because a rate-limited request is denied before the device-signature check, the nonce insert and
+the row lock. The simulation fails the run if grants exceed the bound or if nothing is rate
+limited at all, so it is a regression test for the limiter, not just a benchmark. As before,
+this is a single-instance, local measurement; a multi-instance deployment would need the shared
+rate-limit store described in the README before this guarantee held across instances.
