@@ -5,11 +5,11 @@
 ![Spring Boot 4](https://img.shields.io/badge/Spring%20Boot-4-brightgreen)
 ![PostgreSQL 16](https://img.shields.io/badge/PostgreSQL-16-336791)
 
-A backend for sharing digital car keys. Owners issue time-limited, permissioned keys to other
+**A backend for sharing digital car keys.** Owners issue time-limited, permissioned keys to other
 people. Holders can delegate a narrower version of their own key onward. Every unlock decision,
 online or fully offline, comes back with a rule-by-rule explanation instead of a bare yes/no.
 
-```jsonc
+```json
 // POST /api/v1/vehicles/{vin}/access-checks  ->  200
 {
   "decision": "DENIED",
@@ -23,28 +23,57 @@ online or fully offline, comes back with a rule-by-rule explanation instead of a
 }
 ```
 
-## Contents
+## Highlights
 
-- [Guarantees](#guarantees)
-- [Features](#features)
-- [How it works](#how-it-works)
-- [Quick start](#quick-start)
-- [Configuration](#configuration)
-- [Testing](#testing)
-- [Attack simulator](#attack-simulator)
-- [Load testing](#load-testing)
-- [Observability](#observability)
-- [Security](#security)
-- [Deployment](#deployment)
-- [Design decisions](#design-decisions)
-- [Limitations and future work](#limitations-and-future-work)
+- **Explainable access control.** Every decision returns the full rule-by-rule trace, and the same
+  trace is written to an audit log that the database itself refuses to modify.
+- **Works with no signal.** Cars verify Ed25519-signed credentials and a Bloom filter of revoked keys
+  offline. It fails safe: a Bloom filter false positive denies rather than grants.
+- **Race-safe revocation.** Once a revocation commits, no later access is granted — proven by a test
+  that races 150 concurrent requests against a revocation on virtual threads.
+- **Delegation that can only narrow**, up to 3 levels deep, with cascading revocation computed in a
+  single recursive-CTE statement.
+- **Measured, not estimated.** 0 failures and p95 89 ms at 50 req/s sustained under Gatling load tests.
+- **A real security pipeline.** 96 tests, an 80% coverage gate on core packages, CodeQL, Trivy image
+  scanning, a published SBOM, and OWASP dependency checks.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    Phone["Phone<br/>(holds device key)"] -- "signs vin | command | challenge | timestamp" --> Car
+    Car["Car"] -- "credential + device signature" --> Server["keypass-server<br/>Spring Boot API"]
+    Server --> DB[("PostgreSQL 16<br/>keys · nonces · audit log")]
+    Server -. "signed credential" .-> Phone
+    Server -. "offline bundle: revoked-key<br/>Bloom filter, valid ≤ 24 h" .-> Car
+```
+
+```
+keypass-common   crypto (Ed25519, Bloom filter, token bucket) and the domain model; no Spring
+keypass-server   the Spring Boot API
+keypass-car-sim  a plain-Java client that plays the part of phones and cars
+load-tests       Gatling simulations (a separate Maven project, outside the main reactor)
+```
+
+`keypass-common` has no Spring dependency (enforced by an ArchUnit test), so the simulator runs
+the exact crypto and credential code the server uses.
+
+An online unlock, briefly:
+
+1. The phone fetches a **signed credential** for its key (Ed25519, issued by the server).
+2. The car generates a random challenge. The phone signs `vin | command | challenge | timestamp` with its **device key**.
+3. The car sends the credential and the device signature to the server.
+4. The server verifies both signatures, consumes the nonce, takes a row lock on the key, evaluates
+   the policy rules in order, and writes an audit row.
+
+Sequence diagrams for the online and offline flows are in [`docs/architecture.md`](docs/architecture.md).
 
 ## Guarantees
 
 These are enforced by tests that fail if the behaviour breaks, not just described in prose.
 
 | Guarantee | Mechanism | Proven by |
-|---|---|---|
+| --- | --- | --- |
 | A stolen credential is useless without the phone's private key | Every request must carry a signature from the device the key was issued to | `AccessCheckIT` |
 | A replayed unlock request is rejected | Single-use nonces via `INSERT ... ON CONFLICT DO NOTHING`, plus a ±30 s freshness window | `ReplayProtectionIT` |
 | Once a revocation commits, no later access is granted | Pessimistic row locking (ADR 0004) | `RevocationConcurrencyIT`: 150 concurrent requests racing a revocation on virtual threads |
@@ -61,36 +90,9 @@ These are enforced by tests that fail if the behaviour breaks, not just describe
 - **Cascading revocation.** Revoking a key revokes everything shared from it, computed in a single
   recursive-CTE statement.
 - **Offline verification.** A car with no signal checks a signed credential, a device signature and
-  a Bloom filter of revoked keys downloaded up to 24 hours earlier. It fails safe: a Bloom filter
-  false positive denies rather than grants.
-- **Explainable decisions.** Every check returns the full rule-by-rule trace, and the same trace is
-  written to the audit log.
+  a Bloom filter of revoked keys downloaded up to 24 hours earlier.
 - **Anomaly detection.** Brute-force and unusual-access-time alerts are raised asynchronously.
 - **Per-key rate limiting.** A token bucket allows 10 requests per minute per key.
-
-## How it works
-
-```
-keypass-common   crypto (Ed25519, Bloom filter, token bucket) and the domain model; no Spring
-keypass-server   the Spring Boot API
-keypass-car-sim  a plain-Java client that plays the part of phones and cars
-load-tests       Gatling simulations (a separate Maven project, outside the main reactor)
-```
-
-`keypass-common` has no Spring dependency (enforced by an ArchUnit test) so the simulator runs
-the exact crypto and credential code the server uses.
-
-An online unlock, briefly:
-
-1. The phone fetches a **signed credential** for its key (Ed25519, issued by the server).
-2. The car generates a random challenge. The phone signs `vin | command | challenge | timestamp`
-   with its **device key**.
-3. The car sends the credential and the device signature to the server.
-4. The server verifies both signatures, consumes the nonce, takes a row lock on the key, evaluates
-   the policy rules in order, and writes an audit row.
-
-Sequence diagrams for the online and offline flows are in
-[`docs/architecture.md`](docs/architecture.md).
 
 ## Quick start
 
@@ -116,7 +118,7 @@ To run the server from source instead, start Postgres (`docker compose up db`) a
 ## Configuration
 
 | Variable | Purpose | Default |
-|---|---|---|
+| --- | --- | --- |
 | `DB_PASSWORD` | PostgreSQL password | `keypass` for local runs |
 | `KEYPASS_SIGNING_KEY` | Base64 Ed25519 private key that signs credentials | ephemeral key generated at startup |
 | `KEYPASS_SIGNING_PUBLIC_KEY` | Matching public key (required whenever the private key is set) | none |
@@ -139,15 +141,16 @@ PostgreSQL. The build also enforces an 80% line-coverage gate on the policy, acc
 revocation packages, and a Spotless formatting check.
 
 | Suite | Tests |
-|---|---|
+| --- | --- |
 | `keypass-common`: crypto, policy rules, Bloom filter, token bucket | 28 |
 | `keypass-server`: unit, web-layer slices, ArchUnit | 42 |
 | `keypass-server`: Testcontainers integration | 17 |
 | `keypass-car-sim`: API client and request signing | 9 |
 | **Total** | **96** |
 
-CI (`.github/workflows/ci.yml`) runs the build, CodeQL, a container image build with a Trivy scan,
-and publishes an SBOM. A separate workflow runs OWASP dependency checks.
+CI (`.github/workflows/ci.yml`) runs the build, CodeQL, a container image build with a Trivy scan
+that fails on fixable HIGH or CRITICAL findings, and publishes an SBOM. Third-party actions are
+pinned to commit SHAs. A separate workflow runs OWASP dependency checks.
 
 ## Attack simulator
 
@@ -161,7 +164,7 @@ With a server running:
 It drives the real HTTP API through nine scenarios and prints a pass/fail summary:
 
 | Scenario | Expected result |
-|---|---|
+| --- | --- |
 | Normal unlock | `GRANTED` |
 | Key past its expiry | `DENIED` (`VALIDITY`) |
 | Revoked key | `DENIED` (`STATUS`) |
@@ -179,7 +182,7 @@ Numbers below are measured, not estimated. Full setup and method are in
 PostgreSQL both running locally.
 
 | Simulation | Profile | Result |
-|---|---|---|
+| --- | --- | --- |
 | `AccessCheckSimulation` | 400 keys, 50 req/s sustained | 1,755 requests, **0 failures, p95 89 ms**, p99 103 ms |
 | `RateLimiterStressSimulation` | 5 keys, 50 req/s (each key far over its limit) | 1,755 requests: **80 granted, 1,675 `RATE_LIMITED`**, 0 server errors, p95 66 ms |
 
@@ -234,10 +237,10 @@ been executed against a live AWS account.
 
 ## Design decisions
 
-Architecture decision records in [`docs/adr/`](docs/adr/):
+Architecture decision records in [`docs/adr/`](docs/adr):
 
 | ADR | Decision |
-|---|---|
+| --- | --- |
 | [0001](docs/adr/0001-tech-stack.md) | Java 21, Spring Boot 4, PostgreSQL, Maven |
 | [0002](docs/adr/0002-custom-credential-format.md) | A custom Ed25519 credential instead of JWT for car keys |
 | [0003](docs/adr/0003-immutable-keys.md) | Keys are immutable; editing means revoke and reissue |
