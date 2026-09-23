@@ -10,3 +10,8 @@ target/
 HELP.md
 .mvn/wrapper/maven-wrapper.jar
 /keypass-signing-key.txt
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example

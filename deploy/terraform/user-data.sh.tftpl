@@ -1,0 +1,19 @@
+#!/bin/bash
+# First-boot setup for Amazon Linux 2023: Docker, the Compose plugin, and a checkout of the repo
+# (for the compose files, Caddyfile and deploy scripts). The application itself is not started
+# here; the first GitHub Actions deploy does that once the SSM secrets exist.
+set -euxo pipefail
+
+dnf install -y docker git
+systemctl enable --now docker
+
+# AL2023 does not package the Compose v2 plugin. The prod overlay needs >= 2.24 for `!reset`.
+COMPOSE_VERSION=v2.29.7
+mkdir -p /usr/local/lib/docker/cli-plugins
+curl -fsSL -o /usr/local/lib/docker/cli-plugins/docker-compose \
+  "https://github.com/docker/compose/releases/download/$${COMPOSE_VERSION}/docker-compose-linux-x86_64"
+chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+
+if [ ! -d /opt/keypass/.git ]; then
+  git clone "${repo_url}" /opt/keypass
+fi

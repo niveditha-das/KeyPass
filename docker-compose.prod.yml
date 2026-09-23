@@ -7,6 +7,9 @@ services:
     ports: !reset []
 
   server:
+    # On AWS, deploy/deploy.sh sets KEYPASS_IMAGE to the ECR image built by the deploy workflow.
+    # Without it, `up --build` builds locally and tags the result with this name.
+    image: ${KEYPASS_IMAGE:-keypass-server:local}
     ports: !reset []
     restart: unless-stopped
     environment:
