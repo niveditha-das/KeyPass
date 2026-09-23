@@ -33,11 +33,11 @@ resource "aws_ecr_lifecycle_policy" "server" {
   policy = jsonencode({
     rules = [{
       rulePriority = 1
-      description  = "Keep the 20 most recent images"
+      description  = "Keep the 3 most recent images (stays inside the 500 MB ECR free tier)"
       selection = {
         tagStatus   = "any"
         countType   = "imageCountMoreThan"
-        countNumber = 20
+        countNumber = 3
       }
       action = { type = "expire" }
     }]

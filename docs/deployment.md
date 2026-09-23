@@ -1,8 +1,9 @@
 # Deployment: AWS (single EC2 instance)
 
 The AWS side is defined in Terraform (`deploy/terraform/`), and deploys run from a manual GitHub
-Actions workflow (`.github/workflows/deploy.yml`). Standing it up needs a real AWS account and
-costs real money (roughly a t3.small, an Elastic IP and a little ECR storage).
+Actions workflow (`.github/workflows/deploy.yml`). It is sized to stay inside the AWS free tier
+(one t3.micro, 20 GB of EBS, one public IPv4 address, at most 3 images in ECR). AWS still needs a
+payment card on the account, and anything beyond the free-tier allowances is billed.
 
 ## Shape
 
@@ -27,8 +28,8 @@ GitHub Actions ──OIDC──▶ build ▶ Trivy ▶ push to ECR ▶ SSM Run C
 
 | Resource | Purpose |
 | --- | --- |
-| ECR repository `keypass-server` | Immutable tags, scan on push, keeps the last 20 images |
-| EC2 instance + Elastic IP | t3.small by default, encrypted gp3 root volume |
+| ECR repository `keypass-server` | Immutable tags, scan on push, keeps the last 3 images |
+| EC2 instance + Elastic IP | t3.micro (free tier) with 2 GB swap, encrypted 20 GB gp3 root volume |
 | Security group | 80 and 443 in from anywhere; nothing else |
 | Instance role | Read `/keypass/*` from SSM, pull from ECR, Session Manager |
 | GitHub OIDC provider + deploy role | Push to ECR, `ssm:SendCommand` to this one instance |

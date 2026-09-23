@@ -5,9 +5,9 @@ variable "region" {
 }
 
 variable "instance_type" {
-  description = "EC2 instance type. t3.small (2 GiB) comfortably fits the server, Postgres and Caddy."
+  description = "EC2 instance type. t3.micro is free-tier eligible; its 1 GiB is stretched with a 2 GiB swap file and container memory limits."
   type        = string
-  default     = "t3.small"
+  default     = "t3.micro"
 }
 
 variable "root_volume_gb" {

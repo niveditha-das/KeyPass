@@ -5,6 +5,9 @@
 services:
   db:
     ports: !reset []
+    restart: unless-stopped
+    # Limits sized for a free-tier t3.micro (1 GiB RAM + 2 GiB swap).
+    mem_limit: 256m
 
   server:
     # On AWS, deploy/deploy.sh sets KEYPASS_IMAGE to the ECR image built by the deploy workflow.
@@ -12,6 +15,7 @@ services:
     image: ${KEYPASS_IMAGE:-keypass-server:local}
     ports: !reset []
     restart: unless-stopped
+    mem_limit: 600m   # the JVM takes 75% of this as heap (see Dockerfile)
     environment:
       SPRING_PROFILES_ACTIVE: prod
       KEYPASS_SIGNING_KEY: ${KEYPASS_SIGNING_KEY:?set KEYPASS_SIGNING_KEY (see scripts/GenerateSigningKey.java)}
@@ -20,6 +24,7 @@ services:
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
+    mem_limit: 64m
     ports:
       - "80:80"
       - "443:443"
