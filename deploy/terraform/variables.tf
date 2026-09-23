@@ -22,10 +22,10 @@ variable "repo_url" {
   default     = "https://github.com/niveditha-das/KeyPass.git"
 }
 
-variable "github_repository" {
-  description = "GitHub repository (owner/name) allowed to deploy through OIDC."
+variable "github_oidc_subject_prefix" {
+  description = "Start of the OIDC `sub` claim for the repository allowed to deploy. This repository uses GitHub's immutable subject format (owner@id/repo@id); see `gh api repos/OWNER/REPO/actions/oidc/customization/sub`."
   type        = string
-  default     = "niveditha-das/KeyPass"
+  default     = "repo:niveditha-das@205532089/KeyPass@1375511393"
 }
 
 variable "github_environment" {
