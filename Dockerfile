@@ -1,4 +1,4 @@
-FROM eclipse-temurin:21-jdk AS build
+FROM eclipse-temurin:25-jdk AS build
 WORKDIR /src
 COPY pom.xml .
 COPY keypass-common/pom.xml keypass-common/pom.xml
@@ -11,7 +11,7 @@ COPY keypass-common/src keypass-common/src
 COPY keypass-server/src keypass-server/src
 RUN ./mvnw -B -pl keypass-server -am -DskipTests package
 
-FROM eclipse-temurin:21-jre
+FROM eclipse-temurin:25-jre
 RUN groupadd --system app && useradd --system --gid app app
 WORKDIR /app
 COPY --from=build /src/keypass-server/target/keypass-server-*.jar app.jar
