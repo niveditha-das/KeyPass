@@ -51,3 +51,45 @@ actually sustains, so some keys would get correctly rate-limited under sustained
 would have shown up as load-test "failures" that were really the rate limiter doing exactly its
 job. Fixed by seeding enough keys (400) that the average per-key rate stays comfortably under
 the limit; see the comment in `AccessCheckSimulation.java`.
+
+## First AWS deploy: what broke
+
+The first run of the deploy pipeline against the real account hit several unrelated problems in
+a row. In the order they appeared:
+
+**Expired credentials hiding behind a fresh login.** `aws` kept failing with "credentials were
+refreshed, but the refreshed credentials are still expired" even after logging in again. The shell
+still had `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` and
+`AWS_CREDENTIAL_EXPIRATION` exported from an earlier session, and environment variables outrank the
+profile. `env | grep ^AWS_` found it; `unset` fixed it. The login had also been done as the account
+root user, which should be replaced by an IAM user.
+
+**Trivy blocked the deploy on Jackson.** Ten HIGH findings, all in `app.jar`: denial-of-service
+CVEs in both Jackson lines that Spring Boot 4.1.1 manages (2.21.5 and 3.1.5); the OS layer was
+clean. Boot exposes the managed versions as `jackson-2-bom.version` and `jackson-bom.version`
+(note the 3.x line owns the unsuffixed name), so overriding both in the parent `pom.xml`
+(2.21.7 / 3.1.7) fixed it, confirmed with `dependency:tree` and the test suite. The scan's
+`exit-code: 1` did its job; the answer was a version bump, not a looser threshold.
+
+**A Maven Central 502 failed the image build.** `archunit-1.4.1.jar` returned `502 Bad Gateway`
+mid-build; re-running the failed job passed. The Dockerfile's Maven step has no retry, so one
+upstream blip fails a deploy.
+
+**Caddy: wrong profile syntax, and a hostname instead of an IP.** `profile` is not valid directly
+under `tls`; it belongs on the issuer, `tls { issuer acme { profile shortlived } }`. Separately,
+the SSM parameter `/keypass/KEYPASS_DOMAIN` held `98-94-175-255.sslip.io`, not the bare IP the plan
+assumed, so Caddy was requesting a hostname certificate. A TLS `internal error` alert on the bare
+IP was the symptom, and the Caddy log (`certificate obtained successfully` for the sslip.io name)
+and `cat -A` on the instance's `.env` explained it. Staging issuance with the shortlived profile
+worked for the hostname.
+
+**Reading "it works" carefully.** After removing the staging block, the production endpoint
+returned 200 with a trusted certificate, which looked like success. The certificate's dates showed
+it was the original 90-day one from 23 September, still in the `caddy-data` volume, so the new
+issuance path had not actually been exercised in production, and the bare-IP case never was. Also,
+`docker compose up -d` does not restart Caddy for a change to a bind-mounted file, so a
+Caddyfile-only change needs an explicit restart.
+
+Useful for next time: when the first symptom is a TLS alert, read the service's own log before
+changing config, and diff what is actually running (`.env` value, certificate dates) against what
+was assumed.

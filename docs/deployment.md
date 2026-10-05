@@ -51,7 +51,11 @@ the target account.
    If the account already has a GitHub OIDC provider, set `create_github_oidc_provider = false`.
    State is local by default; `versions.tf` shows how to switch to an S3 backend.
 
-2. **DNS.** Point an `A` record for your hostname at the `public_ip` output.
+2. **Hostname.** Caddy needs something to request a certificate for. Either point an `A` record
+   for your own hostname at the `public_ip` output, or skip DNS and use a wildcard-DNS name that
+   embeds the address, e.g. `98-94-175-255.sslip.io` for `98.94.175.255`. The current deployment
+   uses the sslip.io form. sslip.io is shared, so Let's Encrypt's per-domain rate limits are
+   shared with everyone else using it; a name you own avoids that.
 
 3. **Secrets.** Generate a signing key pair with `java scripts/GenerateSigningKey.java`, then:
 
@@ -60,8 +64,10 @@ the target account.
    aws ssm put-parameter --region $R --type SecureString --name /keypass/KEYPASS_SIGNING_KEY        --value '<private key>'
    aws ssm put-parameter --region $R --type SecureString --name /keypass/KEYPASS_SIGNING_PUBLIC_KEY --value '<public key>'
    aws ssm put-parameter --region $R --type SecureString --name /keypass/DB_PASSWORD                --value "$(openssl rand -base64 32)"
-   aws ssm put-parameter --region $R --type SecureString --name /keypass/KEYPASS_DOMAIN             --value 'keypass.example.com'
+   aws ssm put-parameter --region $R --type SecureString --name /keypass/KEYPASS_DOMAIN             --value '98-94-175-255.sslip.io'
    ```
+
+   `KEYPASS_DOMAIN` is the exact host Caddy serves (no scheme, no trailing slash).
 
    `DB_PASSWORD` is only applied when Postgres initialises its volume. Changing it later means
    changing it inside the database too.
@@ -90,7 +96,7 @@ Run the **deploy** workflow from the Actions tab (it deploys the commit it is ru
 Then check it from outside:
 
 ```
-curl https://$KEYPASS_DOMAIN/api/v1/.well-known/keypass-keys   # public signing keys; /actuator/* is 404 by design
+curl -I https://$KEYPASS_DOMAIN/api/v1/.well-known/keypass-keys   # public signing keys; /actuator/* is 404 by design
 ```
 
 The prod profile refuses to start without `KEYPASS_SIGNING_KEY` (an ephemeral key would silently
@@ -100,6 +106,23 @@ invalidate every issued credential on restart) and disables Swagger UI and the O
 `sudo /opt/keypass/deploy/deploy.sh <old-sha> <registry>/keypass-server:<old-sha>`.
 
 **Shell access:** `terraform output ssm_session_command`.
+
+## TLS
+
+Caddy requests certificates from Let's Encrypt with the `shortlived` ACME profile (6-day
+certificates, renewed automatically). Let's Encrypt issues certificates for bare IP addresses only
+under that profile, which is why `deploy/Caddyfile` sets it and `docker-compose.prod.yml` pins
+Caddy to 2.11 or later (older versions have no `profile` option and refuse to start).
+Issuance for a hostname has been verified against Let's Encrypt staging; issuing for a bare IP
+(`KEYPASS_DOMAIN=<public ip>`) has not been tried here.
+
+When changing the ACME setup, add a global `acme_ca https://acme-staging-v02.api.letsencrypt.org/directory`
+block to the top of the Caddyfile first. Staging has far looser rate limits and its certificates are
+not browser-trusted (`curl -k`). Remove the block once issuance works.
+
+`deploy.sh` runs `docker compose up -d`, which does not restart Caddy when only the bind-mounted
+`deploy/Caddyfile` changed. After a Caddyfile-only change, restart it on the instance:
+`docker compose -f docker-compose.yml -f docker-compose.prod.yml restart caddy`.
 
 ## Without the pipeline
 
