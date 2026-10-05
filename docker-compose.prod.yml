@@ -22,7 +22,7 @@ services:
       KEYPASS_SIGNING_PUBLIC_KEY: ${KEYPASS_SIGNING_PUBLIC_KEY:?set KEYPASS_SIGNING_PUBLIC_KEY}
 
   caddy:
-    image: caddy:2-alpine
+    image: caddy:2.11-alpine
     restart: unless-stopped
     mem_limit: 64m
     ports:
