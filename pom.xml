@@ -28,6 +28,9 @@
   <properties>
     <java.version>21</java.version>
     <tomcat.version>11.0.25</tomcat.version>
+    <!-- Override Boot 4.1.1's managed Jackson (2.21.5 / 3.1.5): fixes HIGH DoS CVEs flagged by the deploy Trivy scan. -->
+    <jackson-2-bom.version>2.21.7</jackson-2-bom.version>
+    <jackson-bom.version>3.1.7</jackson-bom.version>
     <maven.compiler.release>21</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <springdoc.version>3.1.1</springdoc.version>
