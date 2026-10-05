@@ -1,14 +1,7 @@
-{
-	# TEMPORARY: Let's Encrypt STAGING endpoint for the first deploy only. Staging has far looser
-	# rate limits, so a broken config costs nothing. Its certificates are NOT browser-trusted.
-	# REMOVE THIS ENTIRE GLOBAL BLOCK after the first successful issuance, then redeploy and delete
-	# the caddy-data volume (or wait for renewal) so a real certificate is issued.
-	acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
-}
-
 # Caddy obtains and renews a Let's Encrypt certificate automatically for {$KEYPASS_DOMAIN}.
-# KEYPASS_DOMAIN is currently a bare public IP. Let's Encrypt only issues IP-address certificates
-# under the `shortlived` ACME profile (6-day certs, renewed automatically by Caddy). Needs Caddy 2.11+.
+# KEYPASS_DOMAIN is the host or IP Caddy serves. The `shortlived` ACME profile (6-day certs, renewed
+# automatically by Caddy, needs Caddy 2.11+) is required for IP-address certificates; it also works
+# for hostnames.
 {$KEYPASS_DOMAIN} {
 	tls {
 		issuer acme {
